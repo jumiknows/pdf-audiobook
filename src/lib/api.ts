@@ -75,6 +75,7 @@ export const api = {
       if (insertError) throw insertError;
 
       try {
+        console.log('Calling AI summarization...');
         const summaryResponse = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-text`,
           {
@@ -87,15 +88,23 @@ export const api = {
           }
         );
 
+        console.log('Summary response status:', summaryResponse.status);
+
         if (summaryResponse.ok) {
-          const { summary } = await summaryResponse.json();
+          const result = await summaryResponse.json();
+          console.log('Summary result:', result);
 
-          await supabase
-            .from('documents')
-            .update({ summary_text: summary })
-            .eq('id', doc.id);
+          if (result.summary) {
+            await supabase
+              .from('documents')
+              .update({ summary_text: result.summary })
+              .eq('id', doc.id);
 
-          doc.summary_text = summary;
+            doc.summary_text = result.summary;
+          }
+        } else {
+          const errorText = await summaryResponse.text();
+          console.error('Summary API error:', errorText);
         }
       } catch (summaryError) {
         console.error('Failed to generate summary:', summaryError);
