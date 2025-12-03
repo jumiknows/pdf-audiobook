@@ -20,6 +20,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  let text = "";
+  let maxLength = 500;
+
   try {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
@@ -36,7 +39,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { text, maxLength = 500 }: RequestBody = await req.json();
+    const body: RequestBody = await req.json();
+    text = body.text;
+    maxLength = body.maxLength || 500;
 
     if (!text || text.trim().length === 0) {
       return new Response(
@@ -55,7 +60,7 @@ Deno.serve(async (req: Request) => {
     const prompt = `Please provide a concise summary of the following text in approximately ${maxLength / 5} words. Focus on the main ideas and key points:\n\n${truncatedText}`;
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -80,10 +85,12 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
+        summary: text ? text.slice(0, maxLength) + "..." : "Unable to generate summary",
+        fallback: true,
         error: errorMessage,
       }),
       {
-        status: 500,
+        status: 200,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json",
