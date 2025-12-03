@@ -35,7 +35,7 @@ export function AuthForm() {
             <LogIn className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">PDF Audiobook</h1>
-          <p className="text-gray-600">Transform research papers into audio</p>
+          <p className="text-gray-600">Transform PDFs into audio summaries</p>
         </div>
 
         <div className="flex gap-2 mb-6">

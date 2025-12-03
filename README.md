@@ -1,13 +1,13 @@
 # PDF Audiobook Converter
 
-Transform research papers and documents into audio summaries that you can listen to on the go. This application extracts text from PDFs, generates intelligent summaries, and uses browser text-to-speech to read them aloud with synchronized highlighting.
+Transform PDFs into audio summaries that you can listen to on the go. This application extracts text from PDFs, generates intelligent summaries using extractive AI, and uses browser text-to-speech to read them aloud with synchronized highlighting.
 
 ## Features
 
-- **User Authentication** - Secure registration and login with JWT tokens
-- **PDF Upload** - Upload and store PDF documents
-- **Automatic Text Extraction** - Server-side PDF text extraction
-- **Smart Summarization** - AI-powered summarization using keyword extraction
+- **User Authentication** - Secure registration and login with Supabase Auth
+- **PDF Upload** - Upload and store PDF documents in Supabase Storage
+- **Automatic Text Extraction** - Client-side PDF text extraction using PDF.js
+- **Smart Summarization** - Extractive AI summarization with customizable length
 - **Audio Playback** - Browser text-to-speech with real-time highlighting
 - **Position Memory** - Resume listening from where you left off
 - **Document Management** - View, play, and delete your uploaded documents
@@ -23,39 +23,43 @@ Transform research papers and documents into audio summaries that you can listen
 - **Web Speech API** for text-to-speech
 
 ### Backend
-- **Node.js** with Express.js
-- **MongoDB** with Mongoose ODM
-- **JWT** for authentication
-- **Multer** for file uploads
-- **pdf-parse** for server-side PDF text extraction
-- **bcryptjs** for password hashing
+- **Supabase** - Backend-as-a-Service
+  - PostgreSQL database
+  - Authentication
+  - Storage for PDF files
+  - Edge Functions for serverless processing
+  - Row Level Security (RLS)
 
 ## Architecture
 
 ```
 ┌─────────────────┐
 │  React Frontend │
-│   (Port 5173)   │
+│   (Vite App)    │
 └────────┬────────┘
-         │ REST API
          │
-┌────────▼────────┐      ┌──────────────┐
-│  Express API    │◄─────┤  MongoDB     │
-│   (Port 5000)   │      │  Database    │
-└────────┬────────┘      └──────────────┘
+         │ Supabase Client SDK
          │
-         ▼
-   File System
-   (uploads/)
+┌────────▼────────────────────────────┐
+│         Supabase Platform           │
+│  ┌──────────┐  ┌──────────────┐   │
+│  │   Auth   │  │  PostgreSQL  │   │
+│  └──────────┘  │   Database   │   │
+│  ┌──────────┐  └──────────────┘   │
+│  │ Storage  │  ┌──────────────┐   │
+│  │  (PDFs)  │  │    Edge      │   │
+│  └──────────┘  │  Functions   │   │
+│                 └──────────────┘   │
+└────────────────────────────────────┘
 ```
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+Before you begin, ensure you have:
 
 - **Node.js** (v18 or higher) - [Download here](https://nodejs.org/)
-- **MongoDB** (v5 or higher) - [Installation guide](https://docs.mongodb.com/manual/installation/)
 - **Git** - [Download here](https://git-scm.com/)
+- **Supabase Account** - [Sign up for free](https://supabase.com)
 
 ## Installation & Setup
 
@@ -66,113 +70,100 @@ git clone https://github.com/YOUR_USERNAME/pdf-audiobook.git
 cd pdf-audiobook
 ```
 
-### 2. Set Up MongoDB
+### 2. Create Supabase Project
 
-**Option A: Local MongoDB**
+1. Go to [supabase.com](https://supabase.com) and sign in
+2. Click "New Project"
+3. Fill in your project details
+4. Wait for the database to be set up
 
-1. Install MongoDB Community Edition
-2. Start MongoDB service:
-   ```bash
-   # macOS
-   brew services start mongodb-community
+### 3. Set Up Database Schema
 
-   # Linux
-   sudo systemctl start mongod
+The database schema is already defined in migration files. To apply it:
 
-   # Windows
-   net start MongoDB
-   ```
+1. In your Supabase project dashboard, go to the SQL Editor
+2. Run the migrations in `supabase/migrations/` in order:
+   - `20251203101427_create_pdf_audiobook_schema.sql`
+   - `20251203102957_add_full_text_column.sql`
 
-**Option B: MongoDB Atlas (Free Cloud)**
-
-1. Sign up at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
-2. Create a free cluster
-3. Click "Connect" → "Connect your application"
-4. Copy the connection string
-
-### 3. Set Up Backend
+Or use the Supabase CLI:
 
 ```bash
-cd server
+npx supabase link --project-ref your-project-ref
+npx supabase db push
+```
 
-# Install dependencies
-npm install
+### 4. Set Up Storage
 
-# Create environment file
+1. In Supabase Dashboard, go to **Storage**
+2. Create a new bucket called `pdfs`
+3. Set the bucket to **Private**
+4. Add storage policies:
+
+```sql
+-- Allow authenticated users to upload files to their own folder
+CREATE POLICY "Users can upload to own folder"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'pdfs' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Allow authenticated users to read their own files
+CREATE POLICY "Users can read own files"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (bucket_id = 'pdfs' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Allow authenticated users to delete their own files
+CREATE POLICY "Users can delete own files"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'pdfs' AND auth.uid()::text = (storage.foldername(name))[1]);
+```
+
+### 5. Deploy Edge Functions
+
+Deploy the required edge functions:
+
+```bash
+# Install Supabase CLI
+npm install -g supabase
+
+# Link to your project
+npx supabase link --project-ref your-project-ref
+
+# Deploy functions
+npx supabase functions deploy extract-pdf-text
+npx supabase functions deploy summarize-text
+```
+
+### 6. Configure Environment Variables
+
+```bash
+# Copy example env file
 cp .env.example .env
 
 # Edit .env file
 nano .env
 ```
 
-Configure your `.env` file:
+Configure your `.env` file with your Supabase credentials:
 
 ```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/pdf-audiobook
-# For MongoDB Atlas, use:
-# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/pdf-audiobook
-
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRE=7d
-NODE_ENV=development
-UPLOAD_DIR=uploads
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-**Important:** Change `JWT_SECRET` to a random string in production!
+You can find these values in your Supabase project settings under **API**.
 
-### 4. Set Up Frontend
+### 7. Install Dependencies and Start
 
 ```bash
-# Go back to project root
-cd ..
-
 # Install dependencies
 npm install
 
-# Create environment file
-cp .env.example .env
-
-# Edit .env file
-nano .env
-```
-
-Configure your `.env` file:
-
-```env
-VITE_API_URL=http://localhost:5000/api
-```
-
-### 5. Start the Application
-
-**Terminal 1 - Start Backend:**
-
-```bash
-cd server
+# Start development server
 npm run dev
 ```
-
-You should see:
-```
-MongoDB Connected: localhost:27017
-Server running in development mode on port 5000
-```
-
-**Terminal 2 - Start Frontend:**
-
-```bash
-# From project root
-npm run dev
-```
-
-You should see:
-```
-  VITE ready in XXX ms
-
-  ➜  Local:   http://localhost:5173/
-```
-
-### 6. Open the Application
 
 Visit [http://localhost:5173](http://localhost:5173) in your browser.
 
@@ -187,96 +178,118 @@ Visit [http://localhost:5173](http://localhost:5173) in your browser.
 ### 2. Upload a PDF
 
 - Click the "Upload PDF" button
-- Select a PDF file (max 10MB)
+- Enter a title for your document
+- Select a PDF file
 - Click "Upload"
-- Wait for processing (text extraction + summarization)
+- Text extraction and summarization happen automatically
 
 ### 3. Listen to Your Document
 
-- Click on a processed document card (shows "Ready to play")
+- Click on a processed document card (shows "AI Summary Ready")
+- Choose your preferred voice from the dropdown
 - Click the "Play" button to start audio playback
 - Text highlights as it's being read
 - Use Pause/Resume to control playback
-- Your position is automatically saved
 
-### 4. Manage Documents
+### 4. Adjust Summary Length
+
+- Click "Short", "Medium", or "Long" buttons on a document card
+- The summary will be regenerated at your preferred length
+- Different lengths provide different levels of detail
+
+### 5. Manage Documents
 
 - Click the trash icon to delete a document
 - Click "Back to Library" to return to document list
 - Click "Sign Out" to logout
 
-## API Endpoints
+## Database Schema
 
-### Authentication
+### documents table
 
-```
-POST   /api/auth/register    - Create new user account
-POST   /api/auth/login       - Login and get JWT token
-GET    /api/auth/me          - Get current user info (requires auth)
+```sql
+- id: uuid (primary key)
+- user_id: uuid (foreign key to auth.users)
+- title: text
+- original_filename: text
+- file_path: text (path in storage)
+- full_text: text (extracted PDF text)
+- summary_text: text (AI-generated summary)
+- text_length: integer
+- current_position: integer (audio playback position)
+- processing_status: text (completed, processing, failed)
+- created_at: timestamptz
+- updated_at: timestamptz
 ```
 
-### Documents
+### Row Level Security (RLS)
 
-```
-POST   /api/documents              - Upload new PDF (requires auth)
-GET    /api/documents              - Get all user's documents (requires auth)
-GET    /api/documents/:id          - Get single document (requires auth)
-PATCH  /api/documents/:id/position - Update listening position (requires auth)
-DELETE /api/documents/:id          - Delete document (requires auth)
+All tables have RLS enabled with policies that ensure:
+- Users can only access their own documents
+- Users can only upload/modify/delete their own files
+- All operations require authentication
+
+## Edge Functions
+
+### summarize-text
+
+Generates extractive summaries from text using keyword frequency analysis.
+
+**Endpoint:** `/functions/v1/summarize-text`
+
+**Method:** POST
+
+**Body:**
+```json
+{
+  "text": "Full document text...",
+  "maxLength": 500
+}
 ```
 
-### Health Check
+**Response:**
+```json
+{
+  "summary": "Generated summary text...",
+  "method": "extractive"
+}
+```
 
-```
-GET    /api/health            - Server health status
-```
+### extract-pdf-text
+
+Extracts text content from PDF files (currently unused - text extraction happens client-side).
 
 ## Project Structure
 
 ```
 pdf-audiobook/
-├── server/                     # Backend Express API
-│   ├── src/
-│   │   ├── config/
-│   │   │   └── database.js     # MongoDB connection
-│   │   ├── controllers/
-│   │   │   ├── authController.js
-│   │   │   └── documentController.js
-│   │   ├── middleware/
-│   │   │   ├── auth.js         # JWT authentication
-│   │   │   └── upload.js       # Multer file upload
-│   │   ├── models/
-│   │   │   ├── User.js         # User schema
-│   │   │   └── Document.js     # Document schema
-│   │   ├── routes/
-│   │   │   ├── authRoutes.js
-│   │   │   └── documentRoutes.js
-│   │   ├── utils/
-│   │   │   └── pdfProcessor.js # PDF extraction & summarization
-│   │   └── server.js           # Express app entry point
-│   ├── uploads/                # Uploaded PDF files
-│   ├── .env.example
-│   ├── .gitignore
-│   └── package.json
+├── supabase/
+│   ├── functions/
+│   │   ├── extract-pdf-text/     # PDF text extraction edge function
+│   │   └── summarize-text/       # AI summarization edge function
+│   └── migrations/                # Database schema migrations
+│       ├── 20251203101427_create_pdf_audiobook_schema.sql
+│       └── 20251203102957_add_full_text_column.sql
 │
-├── src/                        # Frontend React app
+├── src/
 │   ├── components/
-│   │   ├── AudioPlayer.tsx     # Audio playback UI
-│   │   ├── AuthForm.tsx        # Login/register form
-│   │   ├── DocumentLibrary.tsx # Document list view
-│   │   └── UploadModal.tsx     # PDF upload modal
+│   │   ├── AudioPlayer.tsx        # Audio playback UI with highlighting
+│   │   ├── AuthForm.tsx           # Login/register form
+│   │   ├── DocumentLibrary.tsx    # Document list and management
+│   │   └── UploadModal.tsx        # PDF upload modal
 │   ├── hooks/
-│   │   └── useSpeechSynthesis.ts # Text-to-speech hook
+│   │   └── useSpeechSynthesis.ts  # Text-to-speech hook
 │   ├── lib/
-│   │   └── api.ts              # API client functions
+│   │   ├── api.ts                 # API client functions
+│   │   └── supabase.ts            # Supabase client setup
 │   ├── utils/
-│   │   └── pdfProcessor.ts     # Client-side PDF utilities
-│   ├── App.tsx                 # Main app component
-│   ├── main.tsx                # React entry point
-│   └── index.css               # Global styles
+│   │   └── pdfProcessor.ts        # Client-side PDF utilities
+│   ├── App.tsx                    # Main app component
+│   ├── main.tsx                   # React entry point
+│   └── index.css                  # Global styles
 │
-├── .env.example
-├── .gitignore
+├── .env                           # Environment variables (not in git)
+├── .env.example                   # Environment template
 ├── package.json
 ├── vite.config.ts
 ├── tailwind.config.js
@@ -287,28 +300,33 @@ pdf-audiobook/
 
 ### Authentication Flow
 
-1. User registers → Server hashes password with bcrypt → Stores in MongoDB
-2. User logs in → Server validates credentials → Returns JWT token
-3. Client stores JWT in localStorage
-4. Client sends JWT in Authorization header for protected routes
-5. Server middleware validates JWT → Allows/denies access
+1. User registers → Supabase Auth creates user account
+2. User logs in → Supabase returns session token
+3. Client stores session in localStorage (handled by Supabase SDK)
+4. All API calls include session token automatically
+5. RLS policies enforce data isolation per user
 
 ### Document Processing Flow
 
-1. **Upload**: User selects PDF → Client sends to server via multipart/form-data
-2. **Storage**: Server saves file to `uploads/` directory → Creates DB record
-3. **Extraction**: Background process extracts text using pdf-parse library
-4. **Summarization**: Server analyzes text frequency → Scores sentences → Generates summary
-5. **Playback**: Client fetches summary → Uses Web Speech API → Highlights text in real-time
+1. **Upload**: User selects PDF → Client sends to Supabase Storage
+2. **Extraction**: Client extracts text using PDF.js library
+3. **Storage**: Document metadata saved to PostgreSQL
+4. **Summarization**: Edge function generates extractive summary using keyword analysis
+5. **Playback**: Client uses Web Speech API to read summary with synchronized highlighting
 
 ### Summarization Algorithm
 
-1. Split text into sentences
-2. Calculate word frequency (excluding common stop words)
-3. Score each sentence based on word importance
-4. Select top 30% of sentences
-5. Reorder by original position for coherence
-6. Trim to max 500 words
+The extractive summarization algorithm:
+
+1. Splits text into sentences
+2. Calculates word frequency (excluding stop words)
+3. Scores each sentence based on:
+   - Word importance (frequency)
+   - Position in document (earlier = higher score)
+   - Length penalty (too short/long = lower score)
+4. Selects top-scoring sentences
+5. Reorders by original position for coherence
+6. Returns summary at requested length
 
 ## Deployment
 
@@ -318,152 +336,80 @@ pdf-audiobook/
 2. Connect repository to Netlify or Vercel
 3. Set build command: `npm run build`
 4. Set publish directory: `dist`
-5. Add environment variable: `VITE_API_URL=https://your-api-url.com/api`
-
-### Backend Deployment (Heroku/Railway/Render)
-
-**Example: Railway**
-
-1. Sign up at [railway.app](https://railway.app)
-2. Create new project → "Deploy from GitHub repo"
-3. Select your repository
-4. Configure:
-   - Root directory: `server`
-   - Start command: `npm start`
 5. Add environment variables:
-   ```
-   MONGODB_URI=mongodb+srv://...
-   JWT_SECRET=your-production-secret
-   NODE_ENV=production
-   PORT=5000
-   ```
-6. Deploy
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
 
-**Example: Render**
+### Supabase (Backend)
 
-1. Create new "Web Service"
-2. Connect GitHub repo
-3. Configure:
-   - Root directory: `server`
-   - Build command: `npm install`
-   - Start command: `npm start`
-4. Add environment variables (same as above)
+Your Supabase project is already hosted and managed. Just ensure:
+- Edge functions are deployed
+- Database migrations are applied
+- Storage bucket is configured
+- RLS policies are enabled
 
-### MongoDB Atlas (Production Database)
+### Zero-Cost Deployment
 
-1. Create production cluster
-2. Whitelist IP addresses (or allow from anywhere: `0.0.0.0/0`)
-3. Create database user
-4. Get connection string → Update `MONGODB_URI` in backend
+**Complete stack for free:**
+- **Netlify/Vercel** - Frontend hosting (free tier)
+- **Supabase** - Backend, database, storage, auth (500MB database, 1GB storage on free tier)
+
+**Total Cost:** $0/month for personal projects and small apps
 
 ## Troubleshooting
 
-### Backend won't start
-
-```bash
-# Check MongoDB is running
-mongosh
-
-# Check port 5000 is available
-lsof -i :5000
-
-# View logs
-cd server && npm run dev
-```
-
-### Frontend can't connect to backend
-
-1. Check `VITE_API_URL` in `.env`
-2. Verify backend is running on port 5000
-3. Check browser console for CORS errors
-4. Ensure JWT token is in localStorage
-
 ### PDF upload fails
 
-1. Check file size (max 10MB)
-2. Verify `uploads/` directory exists
-3. Check disk space
-4. View server logs for errors
+1. Check file is a valid PDF
+2. Verify storage bucket is named `pdfs`
+3. Check storage policies are configured
+4. View browser console for errors
 
 ### Text-to-speech not working
 
-1. Web Speech API only works over HTTPS (or localhost)
-2. Try different browser (Chrome recommended)
+1. Web Speech API requires HTTPS (or localhost)
+2. Try Chrome browser (best support)
 3. Check browser console for errors
 4. Verify voices are loaded: `window.speechSynthesis.getVoices()`
 
-### MongoDB connection issues
+### Authentication issues
 
-```bash
-# Test connection string
-mongosh "mongodb://localhost:27017/pdf-audiobook"
+1. Check `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env`
+2. Verify email confirmation is disabled in Supabase Auth settings
+3. Check browser console for errors
+4. Clear localStorage and try again
 
-# For Atlas, ensure:
-# - IP whitelist configured
-# - Correct username/password
-# - Database name in connection string
-```
+### Summary generation fails
 
-## Free Hosting Options
+1. Verify edge functions are deployed
+2. Check function logs in Supabase Dashboard
+3. Ensure document has extracted text
+4. Try regenerating with different length
 
-### Frontend
-- **Netlify** - 100GB bandwidth/month
-- **Vercel** - 100GB bandwidth/month
-- **GitHub Pages** - Unlimited static hosting
+### Database connection issues
 
-### Backend + Database
-- **Railway** - $5 free credit/month (enough for small apps)
-- **Render** - Free tier (services sleep after 15 min inactivity)
-- **MongoDB Atlas** - 512MB free cluster
-
-**Total Cost:** $0-5/month for small-scale usage
-
-## Development
-
-### Run tests
-
-```bash
-# Backend
-cd server
-npm test
-
-# Frontend
-npm test
-```
-
-### Build for production
-
-```bash
-# Frontend
-npm run build
-
-# Backend (no build needed)
-cd server && NODE_ENV=production node src/server.js
-```
-
-### Linting
-
-```bash
-npm run lint
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+1. Check Supabase project is active
+2. Verify RLS policies are configured
+3. Check migrations have been applied
+4. View logs in Supabase Dashboard
 
 ## Security Considerations
 
-- **Never commit** `.env` files to Git
-- **Change** `JWT_SECRET` in production
-- **Use HTTPS** in production (required for Web Speech API)
-- **Validate** all user inputs on backend
-- **Sanitize** file uploads (PDF only)
-- **Implement** rate limiting for API endpoints
-- **Use** secure password policies (min 8 chars, complexity)
+- **Row Level Security (RLS)** enforces data isolation per user
+- **Storage policies** prevent unauthorized file access
+- **Email/password authentication** with Supabase Auth
+- **No API keys in client code** - uses Supabase anon key (safe for public use)
+- **HTTPS required** in production for Web Speech API
+- **File type validation** - PDF only
+- **Input sanitization** in edge functions
+
+## Performance
+
+- **Client-side PDF processing** - no server upload delays
+- **Edge Functions** - globally distributed, low latency
+- **Indexed queries** - fast document retrieval
+- **Browser caching** - Supabase SDK caches session
+- **Optimistic UI updates** - instant feedback
 
 ## License
 
@@ -473,18 +419,17 @@ MIT License - feel free to use this project for learning or commercial purposes.
 
 For issues and questions:
 - Open an issue on GitHub
-- Check existing issues for solutions
+- Check Supabase documentation
 - Review troubleshooting section above
 
 ## Acknowledgments
 
+- Supabase for backend infrastructure
 - PDF.js by Mozilla
-- Express.js framework
-- MongoDB database
 - React team
 - Tailwind CSS
-- pdf-parse library
+- Web Speech API
 
 ---
 
-Built with ❤️ for developers who love turning text into audio
+Built for developers who love turning text into audio

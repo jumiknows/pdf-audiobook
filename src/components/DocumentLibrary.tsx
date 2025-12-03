@@ -79,7 +79,7 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
       await fetchDocuments();
     } catch (error) {
       console.error('Error regenerating summary:', error);
-      alert('Failed to regenerate summary. Please ensure Hugging Face API is configured.');
+      alert('Failed to regenerate summary. Please try again.');
     } finally {
       setRegeneratingId(null);
     }
@@ -101,7 +101,7 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">My Audiobooks</h1>
             <p className="text-gray-600 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-600" />
-              Upload PDFs and listen to AI-powered summaries by Hugging Face BART
+              Upload PDFs and listen to AI-powered summaries
             </p>
           </div>
           <button
