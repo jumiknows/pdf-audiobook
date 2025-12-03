@@ -63,18 +63,6 @@ export function AudioPlayer({ document, onBack }: AudioPlayerProps) {
     }
   }, [currentCharIndex]);
 
-  useEffect(() => {
-    return () => {
-      const savePosition = async () => {
-        if (speaking || paused) {
-          stop();
-          await api.documents.updatePosition(document.id, currentCharIndex);
-        }
-      };
-      savePosition();
-    };
-  }, [speaking, paused, currentCharIndex, document.id, stop]);
-
   const handlePlay = () => {
     if (!document.summary_text) return;
 
