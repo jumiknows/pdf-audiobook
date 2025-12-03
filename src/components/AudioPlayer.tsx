@@ -22,7 +22,17 @@ export function AudioPlayer({ document, onBack }: AudioPlayerProps) {
   const textRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLSpanElement>(null);
 
-  const { speak, pause, resume, stop, speaking, paused } = useSpeechSynthesis({
+  const {
+    speak,
+    pause,
+    resume,
+    stop,
+    speaking,
+    paused,
+    voices,
+    selectedVoice,
+    setSelectedVoice,
+  } = useSpeechSynthesis({
     onBoundary: (charIndex) => {
       setCurrentCharIndex(charIndex);
     },
@@ -125,6 +135,42 @@ export function AudioPlayer({ document, onBack }: AudioPlayerProps) {
             {!ready && (
               <div className="mb-4 text-center text-sm text-gray-600">
                 Loading voices...
+              </div>
+            )}
+
+            {voices.length > 0 && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Voice
+                </label>
+                <select
+                  value={selectedVoice?.name || ''}
+                  onChange={(e) => {
+                    const voice = voices.find(v => v.name === e.target.value);
+                    if (voice) setSelectedVoice(voice);
+                  }}
+                  disabled={speaking}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {voices
+                    .filter(v => v.lang.startsWith('en'))
+                    .map((voice) => (
+                      <option key={voice.name} value={voice.name}>
+                        {voice.name} ({voice.lang})
+                      </option>
+                    ))}
+                  {voices.filter(v => !v.lang.startsWith('en')).length > 0 && (
+                    <optgroup label="Other Languages">
+                      {voices
+                        .filter(v => !v.lang.startsWith('en'))
+                        .map((voice) => (
+                          <option key={voice.name} value={voice.name}>
+                            {voice.name} ({voice.lang})
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
               </div>
             )}
 
