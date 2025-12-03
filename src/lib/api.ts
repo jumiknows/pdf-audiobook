@@ -56,7 +56,6 @@ export const api = {
 
       const text = await extractTextFromPDF(file);
       const textLength = text.length;
-      const summaryText = text.slice(0, 500);
 
       const { data: doc, error: insertError } = await supabase
         .from('documents')
@@ -66,7 +65,7 @@ export const api = {
           original_filename: file.name,
           file_path: uploadData.path,
           full_text: text,
-          summary_text: summaryText,
+          summary_text: null,
           text_length: textLength,
           processing_status: 'completed',
         })
@@ -74,6 +73,34 @@ export const api = {
         .single();
 
       if (insertError) throw insertError;
+
+      try {
+        const summaryResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-text`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text, maxLength: 500 }),
+          }
+        );
+
+        if (summaryResponse.ok) {
+          const { summary } = await summaryResponse.json();
+
+          await supabase
+            .from('documents')
+            .update({ summary_text: summary })
+            .eq('id', doc.id);
+
+          doc.summary_text = summary;
+        }
+      } catch (summaryError) {
+        console.error('Failed to generate summary:', summaryError);
+      }
+
       return doc;
     },
 
