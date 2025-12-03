@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface UseSpeechSynthesisOptions {
   onBoundary?: (charIndex: number) => void;
@@ -11,6 +11,11 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const startPositionRef = useRef<number>(0);
+  const textLengthRef = useRef<number>(0);
+  const boundaryDetectedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const loadVoices = () => {
@@ -52,6 +57,9 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
     if (!text) return;
 
     window.speechSynthesis.cancel();
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
 
     const textToSpeak = text.substring(startPosition);
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -64,18 +72,42 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
+    startTimeRef.current = Date.now();
+    startPositionRef.current = startPosition;
+    textLengthRef.current = textToSpeak.length;
+    boundaryDetectedRef.current = false;
+
     utterance.onstart = () => {
       setSpeaking(true);
       setPaused(false);
+      startTimeRef.current = Date.now();
+
+      intervalRef.current = window.setInterval(() => {
+        if (!boundaryDetectedRef.current) {
+          const elapsed = Date.now() - startTimeRef.current;
+          const avgCharsPerSecond = 15;
+          const estimatedChars = Math.floor((elapsed / 1000) * avgCharsPerSecond);
+          const estimatedPosition = Math.min(
+            startPositionRef.current + estimatedChars,
+            startPositionRef.current + textLengthRef.current
+          );
+          setCurrentCharIndex(estimatedPosition);
+          onBoundary?.(estimatedPosition);
+        }
+      }, 100);
     };
 
     utterance.onboundary = (event) => {
+      boundaryDetectedRef.current = true;
       const actualCharIndex = startPosition + event.charIndex;
       setCurrentCharIndex(actualCharIndex);
       onBoundary?.(actualCharIndex);
     };
 
     utterance.onend = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
       setSpeaking(false);
       setPaused(false);
       onEnd?.();
@@ -83,6 +115,9 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
 
     utterance.onerror = (event) => {
       console.error('Speech synthesis error:', event);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
       setSpeaking(false);
       setPaused(false);
     };
@@ -94,6 +129,9 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
     if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
       window.speechSynthesis.pause();
       setPaused(true);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     }
   }, []);
 
@@ -101,14 +139,39 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
       setPaused(false);
+      startTimeRef.current = Date.now();
+
+      if (!boundaryDetectedRef.current) {
+        intervalRef.current = window.setInterval(() => {
+          const elapsed = Date.now() - startTimeRef.current;
+          const avgCharsPerSecond = 15;
+          const estimatedChars = Math.floor((elapsed / 1000) * avgCharsPerSecond);
+          const estimatedPosition = Math.min(
+            startPositionRef.current + estimatedChars,
+            startPositionRef.current + textLengthRef.current
+          );
+          setCurrentCharIndex(estimatedPosition);
+        }, 100);
+      }
     }
   }, []);
 
   const stop = useCallback(() => {
     window.speechSynthesis.cancel();
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
     setSpeaking(false);
     setPaused(false);
     setCurrentCharIndex(0);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, []);
 
   return {
