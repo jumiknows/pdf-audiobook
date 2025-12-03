@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    
+
     if (!GEMINI_API_KEY) {
       return new Response(
         JSON.stringify({ error: "GEMINI_API_KEY environment variable is not set" }),
@@ -51,61 +52,19 @@ Deno.serve(async (req: Request) => {
     }
 
     const truncatedText = text.slice(0, 10000);
-
     const prompt = `Please provide a concise summary of the following text in approximately ${maxLength / 5} words. Focus on the main ideas and key points:\n\n${truncatedText}`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.4,
-            topK: 32,
-            topP: 1,
-            maxOutputTokens: 1024,
-          }
-        }),
-      }
-    );
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", errorText);
-      
-      return new Response(
-        JSON.stringify({
-          summary: text.slice(0, maxLength) + "...",
-          fallback: true,
-          error: errorText,
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    const result = await response.json();
-    console.log("Gemini API result:", result);
-    
-    const summary = result?.candidates?.[0]?.content?.parts?.[0]?.text
-      || text.slice(0, maxLength) + "...";
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const summary = response.text();
 
     return new Response(
       JSON.stringify({
         summary: summary.trim(),
-        usedAI: !!result?.candidates?.[0]?.content?.parts?.[0]?.text,
+        usedAI: true,
       }),
       {
         headers: {
