@@ -7,6 +7,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  publicDir: 'public',
   build: {
     rollupOptions: {
       output: {
@@ -15,5 +16,6 @@ export default defineConfig({
         },
       },
     },
+    assetsInlineLimit: 0,
   },
 });
