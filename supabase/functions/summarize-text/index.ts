@@ -35,53 +35,34 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const model = new Supabase.ai.Session('mistral-7b-instruct-v0.2');
+
     const truncatedText = text.slice(0, 5000);
 
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/facebook/bart-large-cnn",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          inputs: truncatedText,
-          parameters: {
-            max_length: maxLength,
-            min_length: 50,
-            do_sample: false,
-          },
-        }),
-      }
-    );
+    const prompt = `Summarize the following text in a clear and concise way. Keep the summary under ${maxLength} characters:\n\n${truncatedText}`;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Hugging Face API error:", errorText);
-      
-      return new Response(
-        JSON.stringify({
-          summary: text.slice(0, maxLength) + "...",
-          fallback: true,
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+    const output = await model.run(prompt, {
+      temperature: 0.3,
+      max_tokens: 300,
+    });
+
+    let summary = '';
+    if (output && typeof output === 'object' && 'completion' in output) {
+      summary = (output.completion as string).trim();
+    } else if (typeof output === 'string') {
+      summary = output.trim();
+    } else {
+      summary = text.slice(0, maxLength) + '...';
     }
 
-    const result = await response.json();
-    const summary = Array.isArray(result) && result[0]?.summary_text
-      ? result[0].summary_text
-      : text.slice(0, maxLength) + "...";
+    if (summary.length > maxLength + 100) {
+      summary = summary.slice(0, maxLength) + '...';
+    }
 
     return new Response(
       JSON.stringify({
         summary,
-        fallback: !result[0]?.summary_text,
+        usedAI: true,
       }),
       {
         headers: {
