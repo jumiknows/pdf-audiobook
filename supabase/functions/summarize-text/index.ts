@@ -1,5 +1,4 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,11 +23,11 @@ Deno.serve(async (req: Request) => {
   let maxLength = 500;
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const HUGGING_FACE_TOKEN = Deno.env.get("HUGGING_FACE_TOKEN");
 
-    if (!GEMINI_API_KEY) {
+    if (!HUGGING_FACE_TOKEN) {
       return new Response(
-        JSON.stringify({ error: "GEMINI_API_KEY environment variable is not set" }),
+        JSON.stringify({ error: "HUGGING_FACE_TOKEN environment variable is not set" }),
         {
           status: 500,
           headers: {
@@ -56,15 +55,42 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const truncatedText = text.slice(0, 10000);
-    const prompt = `Please provide a concise summary of the following text in approximately ${maxLength / 5} words. Focus on the main ideas and key points:\n\n${truncatedText}`;
+    const truncatedText = text.slice(0, 1024);
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/facebook/bart-large-cnn",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${HUGGING_FACE_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inputs: truncatedText,
+          parameters: {
+            max_length: maxLength,
+            min_length: Math.min(50, maxLength / 2),
+            do_sample: false,
+          },
+        }),
+      }
+    );
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const summary = response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    let summary = "";
+
+    if (Array.isArray(result) && result.length > 0 && result[0].summary_text) {
+      summary = result[0].summary_text;
+    } else if (result.error) {
+      throw new Error(result.error);
+    } else {
+      throw new Error("Unexpected response format from Hugging Face API");
+    }
 
     return new Response(
       JSON.stringify({
