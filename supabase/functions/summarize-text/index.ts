@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
     const prompt = `Please provide a concise summary of the following text in approximately ${maxLength / 5} words. Focus on the main ideas and key points:\n\n${truncatedText}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: {
