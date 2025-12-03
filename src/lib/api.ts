@@ -163,6 +163,43 @@ export const api = {
         .eq('id', id);
 
       if (error) throw error;
+    },
+
+    regenerateSummary: async (id: string, maxLength: number = 500) => {
+      const doc = await api.documents.getById(id);
+
+      if (!doc.full_text) {
+        throw new Error('Document has no text to summarize');
+      }
+
+      const summaryResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-text`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: doc.full_text, maxLength }),
+        }
+      );
+
+      if (!summaryResponse.ok) {
+        throw new Error('Failed to regenerate summary');
+      }
+
+      const result = await summaryResponse.json();
+
+      if (result.summary) {
+        await supabase
+          .from('documents')
+          .update({ summary_text: result.summary })
+          .eq('id', id);
+
+        return result.summary;
+      }
+
+      throw new Error('No summary returned');
     }
   }
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Loader2, Trash2, Upload } from 'lucide-react';
+import { FileText, Loader2, Trash2, Upload, Sparkles } from 'lucide-react';
 import { api } from '../lib/api';
 import { UploadModal } from './UploadModal';
 
@@ -19,6 +19,7 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const fetchDocuments = async () => {
     try {
@@ -69,6 +70,21 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
     onDocumentSelect(doc as any);
   };
 
+  const regenerateSummary = async (doc: Document, e: React.MouseEvent, length: number) => {
+    e.stopPropagation();
+
+    setRegeneratingId(doc.id);
+    try {
+      await api.documents.regenerateSummary(doc.id, length);
+      await fetchDocuments();
+    } catch (error) {
+      console.error('Error regenerating summary:', error);
+      alert('Failed to regenerate summary. Please ensure Hugging Face API is configured.');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -83,7 +99,10 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">My Audiobooks</h1>
-            <p className="text-gray-600">Upload PDFs and listen to AI-generated summaries</p>
+            <p className="text-gray-600 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600" />
+              Upload PDFs and listen to AI-powered summaries by Hugging Face BART
+            </p>
           </div>
           <button
             onClick={() => setShowUpload(true)}
@@ -127,19 +146,51 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
                   </div>
 
                   <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{doc.title}</h3>
-                  <p className="text-sm text-gray-500 mb-4">{doc.original_filename}</p>
+                  <p className="text-sm text-gray-500 mb-3">{doc.original_filename}</p>
 
-                  <div className="flex items-center gap-2">
-                    {doc.processing_status !== 'completed' && (
-                      <>
-                        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                        <span className="text-sm text-blue-600">Processing...</span>
-                      </>
-                    )}
-                    {doc.processing_status === 'completed' && doc.summary_text && (
-                      <span className="text-sm text-green-600 font-medium">Ready to play</span>
-                    )}
-                  </div>
+                  {doc.processing_status !== 'completed' && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                      <span className="text-sm text-blue-600">Processing...</span>
+                    </div>
+                  )}
+
+                  {doc.processing_status === 'completed' && doc.summary_text && (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4 h-4 text-green-600" />
+                        <span className="text-sm text-green-600 font-medium">AI Summary Ready</span>
+                      </div>
+
+                      {regeneratingId === doc.id ? (
+                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Regenerating...
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => regenerateSummary(doc, e, 300)}
+                            className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            Short
+                          </button>
+                          <button
+                            onClick={(e) => regenerateSummary(doc, e, 500)}
+                            className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            Medium
+                          </button>
+                          <button
+                            onClick={(e) => regenerateSummary(doc, e, 800)}
+                            className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            Long
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             ))}
