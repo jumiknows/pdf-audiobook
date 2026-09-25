@@ -22,22 +22,24 @@ export function useSpeechSynthesis({ onBoundary, onEnd }: UseSpeechSynthesisOpti
       const availableVoices = window.speechSynthesis.getVoices();
       setVoices(availableVoices);
 
-      if (availableVoices.length > 0 && !selectedVoice) {
-        const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
+      if (availableVoices.length > 0) {
+        setSelectedVoice(currentVoice => {
+          if (currentVoice) return currentVoice;
 
-        const preferredVoice =
-          englishVoices.find(v => v.name.includes('Google') && v.name.includes('US')) ||
-          englishVoices.find(v => v.name.includes('Google')) ||
-          englishVoices.find(v => v.name.includes('Samantha')) ||
-          englishVoices.find(v => v.name.includes('Natural')) ||
-          englishVoices.find(v => v.name.includes('Premium')) ||
-          englishVoices.find(v => v.name.includes('Enhanced')) ||
-          englishVoices.find(v => v.name.includes('Microsoft') && v.name.includes('Online')) ||
-          englishVoices.find(v => v.localService === false) ||
-          englishVoices[0] ||
-          availableVoices[0];
-
-        setSelectedVoice(preferredVoice);
+          const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
+          return (
+            englishVoices.find(v => v.name.includes('Google') && v.name.includes('US')) ||
+            englishVoices.find(v => v.name.includes('Google')) ||
+            englishVoices.find(v => v.name.includes('Samantha')) ||
+            englishVoices.find(v => v.name.includes('Natural')) ||
+            englishVoices.find(v => v.name.includes('Premium')) ||
+            englishVoices.find(v => v.name.includes('Enhanced')) ||
+            englishVoices.find(v => v.name.includes('Microsoft') && v.name.includes('Online')) ||
+            englishVoices.find(v => v.localService === false) ||
+            englishVoices[0] ||
+            availableVoices[0]
+          );
+        });
       }
     };
 

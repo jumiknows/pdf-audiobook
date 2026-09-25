@@ -1,0 +1,8 @@
+* @jumiknows
+
+/src/lib/supabase.ts @jumiknows
+/src/lib/api.ts @jumiknows
+/supabase/ @jumiknows
+/.env.example @jumiknows
+/.github/ @jumiknows
+/SECURITY.md @jumiknows

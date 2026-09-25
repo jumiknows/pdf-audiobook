@@ -38,8 +38,8 @@ export function UploadModal({ onClose, onUploadSuccess }: UploadModalProps) {
 
       onUploadSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Upload failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
     }

@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react';
 import { FileText, Loader2, Trash2, Upload, Sparkles } from 'lucide-react';
 import { api } from '../lib/api';
+import type { Document } from '../lib/supabase';
 import { UploadModal } from './UploadModal';
-
-interface Document {
-  id: string;
-  title: string;
-  original_filename: string;
-  summary_text: string | null;
-  processing_status: string;
-}
 
 interface DocumentLibraryProps {
   onDocumentSelect: (document: Document) => void;
@@ -67,7 +60,7 @@ export function DocumentLibrary({ onDocumentSelect }: DocumentLibraryProps) {
       return;
     }
 
-    onDocumentSelect(doc as any);
+    onDocumentSelect(doc);
   };
 
   const regenerateSummary = async (doc: Document, e: React.MouseEvent, length: number) => {
