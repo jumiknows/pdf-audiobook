@@ -1,26 +1,14 @@
 import { useState, useEffect } from 'react';
 import { api } from './lib/api';
-import { supabase } from './lib/supabase';
+import { supabase, type Document } from './lib/supabase';
 import { AuthForm } from './components/AuthForm';
 import { DocumentLibrary } from './components/DocumentLibrary';
 import { AudioPlayer } from './components/AudioPlayer';
 import { LogOut } from 'lucide-react';
-
-export interface Document {
-  id: string;
-  title: string;
-  originalFilename: string;
-  fileSize: number;
-  summaryText: string;
-  fullText?: string;
-  currentPosition: number;
-  processed: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { User } from '@supabase/supabase-js';
 
 function App() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 

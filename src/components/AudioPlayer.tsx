@@ -1,15 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ArrowLeft } from 'lucide-react';
 import { api } from '../lib/api';
+import type { Document } from '../lib/supabase';
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
-
-interface Document {
-  id: string;
-  title: string;
-  original_filename: string;
-  summary_text: string | null;
-  current_position: number;
-}
 
 interface AudioPlayerProps {
   document: Document;

@@ -75,39 +75,27 @@ export const api = {
       if (insertError) throw insertError;
 
       try {
-        console.log('Calling AI summarization...');
-        const summaryResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-text`,
+        const { data: summaryData, error: summaryError } = await supabase.functions.invoke(
+          'summarize-text',
           {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ text, maxLength: 500 }),
+            body: { text, maxLength: 500 },
           }
         );
 
-        console.log('Summary response status:', summaryResponse.status);
-
-        if (summaryResponse.ok) {
-          const result = await summaryResponse.json();
-          console.log('Summary result:', result);
-
-          if (result.summary) {
-            await supabase
-              .from('documents')
-              .update({ summary_text: result.summary })
-              .eq('id', doc.id);
-
-            doc.summary_text = result.summary;
-          }
-        } else {
-          const errorText = await summaryResponse.text();
-          console.error('Summary API error:', errorText);
+        if (summaryError) {
+          throw summaryError;
         }
-      } catch (summaryError) {
-        console.error('Failed to generate summary:', summaryError);
+
+        if (summaryData?.summary) {
+          await supabase
+            .from('documents')
+            .update({ summary_text: summaryData.summary })
+            .eq('id', doc.id);
+
+          doc.summary_text = summaryData.summary;
+        }
+      } catch {
+        console.error('Failed to generate summary');
       }
 
       return doc;
@@ -172,31 +160,24 @@ export const api = {
         throw new Error('Document has no text to summarize');
       }
 
-      const summaryResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-text`,
+      const { data: summaryData, error: summaryError } = await supabase.functions.invoke(
+        'summarize-text',
         {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text: doc.full_text, maxLength }),
+          body: { text: doc.full_text, maxLength },
         }
       );
 
-      if (!summaryResponse.ok) {
+      if (summaryError) {
         throw new Error('Failed to regenerate summary');
       }
 
-      const result = await summaryResponse.json();
-
-      if (result.summary) {
+      if (summaryData?.summary) {
         await supabase
           .from('documents')
-          .update({ summary_text: result.summary })
+          .update({ summary_text: summaryData.summary })
           .eq('id', id);
 
-        return result.summary;
+        return summaryData.summary;
       }
 
       throw new Error('No summary returned');

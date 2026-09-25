@@ -66,12 +66,7 @@ Deno.serve(async (req: Request) => {
       const textContent = await page.getTextContent();
 
       const pageText = textContent.items
-        .map((item: any) => {
-          if ("str" in item) {
-            return item.str;
-          }
-          return "";
-        })
+        .map((item) => ("str" in item && typeof item.str === "string" ? item.str : ""))
         .filter((str: string) => str.trim().length > 0)
         .join(" ");
 
